@@ -10,13 +10,13 @@ pub struct CertPaths {
 }
 
 /// Ensure a self-signed TLS cert exists for localhost.
-/// Generates a new one if missing or expired.
+/// Generates a new one if missing or too old.
 pub fn ensure_cert(data_dir: &Path) -> Result<CertPaths> {
     let cert_dir = data_dir.join("certs");
     fs::create_dir_all(&cert_dir).context("Failed to create certs directory")?;
 
     let cert_pem = cert_dir.join("printbridge.crt");
-    let key_pem = cert_dir.join("printbridge.key");
+    let key_pem  = cert_dir.join("printbridge.key");
 
     if cert_pem.exists() && key_pem.exists() {
         if !is_cert_expired(&cert_pem) {
@@ -36,7 +36,6 @@ pub fn ensure_cert(data_dir: &Path) -> Result<CertPaths> {
 fn generate_cert(cert_pem: &Path, key_pem: &Path) -> Result<()> {
     let mut params = CertificateParams::default();
 
-    // Valid for 3 years
     params.not_before = rcgen::date_time_ymd(2024, 1, 1);
     params.not_after  = rcgen::date_time_ymd(2027, 1, 1);
 
@@ -45,8 +44,10 @@ fn generate_cert(cert_pem: &Path, key_pem: &Path) -> Result<()> {
     dn.push(DnType::OrganizationName, "PrintBridge");
     params.distinguished_name = dn;
 
+    // rcgen 0.13: DnsName takes a plain String (Ia5String wrapper is internal)
     params.subject_alt_names = vec![
-        SanType::DnsName("localhost".to_string()),
+        SanType::DnsName(rcgen::Ia5String::try_from("localhost".to_string())
+            .map_err(|e| anyhow::anyhow!("Invalid SAN DNS name: {}", e))?),
         SanType::IpAddress(std::net::IpAddr::V4(std::net::Ipv4Addr::new(127, 0, 0, 1))),
     ];
 
@@ -60,11 +61,10 @@ fn generate_cert(cert_pem: &Path, key_pem: &Path) -> Result<()> {
 }
 
 fn is_cert_expired(cert_pem: &Path) -> bool {
-    // Simple heuristic: if file is older than 2.5 years (in seconds), regenerate
+    // Regenerate if file is older than ~2.5 years
     if let Ok(meta) = fs::metadata(cert_pem) {
         if let Ok(modified) = meta.modified() {
             if let Ok(age) = modified.elapsed() {
-                // 2.5 years ≈ 78840000 seconds
                 return age.as_secs() > 78_840_000;
             }
         }

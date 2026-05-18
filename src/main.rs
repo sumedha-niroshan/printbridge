@@ -11,7 +11,7 @@ use anyhow::{Context, Result};
 use directories::ProjectDirs;
 use tokio_rustls::rustls::{self, ServerConfig as TlsServerConfig};
 use rustls_pemfile::{certs, pkcs8_private_keys};
-use tracing::{error, info};
+use tracing::info;
 use tracing_subscriber::EnvFilter;
 
 #[cfg(windows)]
