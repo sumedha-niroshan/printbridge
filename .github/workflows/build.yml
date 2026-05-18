@@ -71,8 +71,7 @@ jobs:
 
       - name: Configure Cargo for MinGW
         run: |
-          mkdir -p .cargo
-          cat >> .cargo/config.toml << 'EOF'
+          cat > .cargo/config.toml << 'EOF'
           [target.x86_64-pc-windows-gnu]
           linker = "x86_64-w64-mingw32-gcc"
           ar = "x86_64-w64-mingw32-ar"
