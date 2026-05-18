@@ -1,18 +1,19 @@
-```rust
 use anyhow::{bail, Context, Result};
 use tracing::{debug, info};
 
 #[cfg(windows)]
 use windows::{
     core::{PCWSTR, PWSTR},
-    Win32::Foundation::HANDLE,
-    Win32::Graphics::Printing::{
-        ClosePrinter, EndDocPrinter, EndPagePrinter, EnumPrintersW,
-        GetDefaultPrinterW, OpenPrinterW, StartDocPrinterW,
-        StartPagePrinter, WritePrinter, DOC_INFO_1W,
-        PRINTER_ACCESS_USE, PRINTER_DEFAULTSW,
-        PRINTER_ENUM_CONNECTIONS, PRINTER_ENUM_LOCAL,
-        PRINTER_INFO_2W,
+    Win32::{
+        Foundation::HANDLE,
+        Graphics::Printing::{
+            ClosePrinter, DOC_INFO_1W, EndDocPrinter, EndPagePrinter,
+            EnumPrintersW, GetDefaultPrinterW, OpenPrinterW,
+            PRINTER_ACCESS_USE, PRINTER_DEFAULTSW,
+            PRINTER_ENUM_CONNECTIONS, PRINTER_ENUM_LOCAL,
+            PRINTER_INFO_2W, StartDocPrinterW, StartPagePrinter,
+            WritePrinter,
+        },
     },
 };
 
@@ -23,7 +24,7 @@ pub struct PrinterInfo {
     pub is_online: bool,
 }
 
-/// List all printers available on this Windows machine.
+/// List all printers
 pub fn list_printers() -> Result<Vec<PrinterInfo>> {
     #[cfg(windows)]
     {
@@ -32,25 +33,16 @@ pub fn list_printers() -> Result<Vec<PrinterInfo>> {
 
     #[cfg(not(windows))]
     {
-        Ok(vec![
-            PrinterInfo {
-                name: "DEV_STUB_Printer_1".to_string(),
-                is_default: true,
-                is_online: true,
-            },
-            PrinterInfo {
-                name: "DEV_STUB_Thermal_80mm".to_string(),
-                is_default: false,
-                is_online: true,
-            },
-        ])
+        Ok(vec![PrinterInfo {
+            name: "DEV_PRINTER".to_string(),
+            is_default: true,
+            is_online: true,
+        }])
     }
 }
 
 #[cfg(windows)]
 fn list_printers_windows() -> Result<Vec<PrinterInfo>> {
-    use std::mem::size_of;
-
     let default_name = get_default_printer_name();
 
     let flags = PRINTER_ENUM_LOCAL | PRINTER_ENUM_CONNECTIONS;
@@ -59,7 +51,7 @@ fn list_printers_windows() -> Result<Vec<PrinterInfo>> {
     let mut needed: u32 = 0;
     let mut returned: u32 = 0;
 
-    // First call to get required buffer size
+    // First call to get buffer size
     unsafe {
         let _ = EnumPrintersW(
             flags,
@@ -75,9 +67,9 @@ fn list_printers_windows() -> Result<Vec<PrinterInfo>> {
         return Ok(vec![]);
     }
 
-    let mut buf: Vec<u8> = vec![0u8; needed as usize];
+    let mut buf = vec![0u8; needed as usize];
 
-    let result = unsafe {
+    unsafe {
         EnumPrintersW(
             flags,
             PCWSTR::null(),
@@ -86,32 +78,28 @@ fn list_printers_windows() -> Result<Vec<PrinterInfo>> {
             &mut needed,
             &mut returned,
         )
-    };
-
-    if result.is_err() {
-        bail!("EnumPrintersW failed: {:?}", result);
+        .ok()
+        .context("EnumPrintersW failed")?;
     }
 
     let mut printers = Vec::new();
-    let info_size = size_of::<PRINTER_INFO_2W>();
+
+    let printer_info_ptr = buf.as_ptr() as *const PRINTER_INFO_2W;
 
     for i in 0..returned as usize {
-        let info_ptr = unsafe {
-            buf.as_ptr().add(i * info_size) as *const PRINTER_INFO_2W
-        };
-
-        let info = unsafe { &*info_ptr };
+        let info = unsafe { &*printer_info_ptr.add(i) };
 
         let name = unsafe {
             info.pPrinterName
                 .to_string()
-                .unwrap_or_default()
+                .unwrap_or_else(|_| "Unknown".to_string())
         };
-
-        let is_default = default_name.as_deref() == Some(name.as_str());
 
         // PRINTER_STATUS_OFFLINE = 0x00000080
         let is_online = (info.Status & 0x00000080) == 0;
+
+        let is_default =
+            default_name.as_deref() == Some(name.as_str());
 
         printers.push(PrinterInfo {
             name,
@@ -125,17 +113,15 @@ fn list_printers_windows() -> Result<Vec<PrinterInfo>> {
 
 #[cfg(windows)]
 fn get_default_printer_name() -> Option<String> {
-    let mut size: u32 = 256;
+    let mut needed: u32 = 256;
 
-    let mut buf: Vec<u16> = vec![0u16; size as usize];
+    let mut buf = vec![0u16; needed as usize];
 
-    let pwstr = PWSTR(buf.as_mut_ptr());
-
-    let ok = unsafe {
-        GetDefaultPrinterW(pwstr, &mut size)
+    let success = unsafe {
+        GetDefaultPrinterW(PWSTR(buf.as_mut_ptr()), &mut needed)
     };
 
-    if ok.as_bool() {
+    if success.as_bool() {
         Some(
             String::from_utf16_lossy(&buf)
                 .trim_end_matches('\0')
@@ -146,10 +132,13 @@ fn get_default_printer_name() -> Option<String> {
     }
 }
 
-/// Send raw bytes directly to a printer (ESC/POS or any raw format).
-pub fn print_raw(printer_name: &str, data: &[u8]) -> Result<()> {
+/// Print raw ESC/POS bytes
+pub fn print_raw(
+    printer_name: &str,
+    data: &[u8],
+) -> Result<()> {
     info!(
-        "Sending {} bytes to printer '{}'",
+        "Printing {} bytes to '{}'",
         data.len(),
         printer_name
     );
@@ -161,21 +150,17 @@ pub fn print_raw(printer_name: &str, data: &[u8]) -> Result<()> {
 
     #[cfg(not(windows))]
     {
-        debug!(
-            "DEV STUB: Would print {} bytes to '{}'",
-            data.len(),
-            printer_name
-        );
+        debug!("DEV MODE print");
 
         Ok(())
     }
 }
 
 #[cfg(windows)]
-fn print_raw_windows(printer_name: &str, data: &[u8]) -> Result<()> {
-    use std::ptr;
-
-    // Convert printer name to null-terminated UTF-16
+fn print_raw_windows(
+    printer_name: &str,
+    data: &[u8],
+) -> Result<()> {
     let printer_name_wide: Vec<u16> = printer_name
         .encode_utf16()
         .chain(std::iter::once(0))
@@ -185,7 +170,7 @@ fn print_raw_windows(printer_name: &str, data: &[u8]) -> Result<()> {
 
     let defaults = PRINTER_DEFAULTSW {
         pDatatype: PWSTR::null(),
-        pDevMode: ptr::null_mut(),
+        pDevMode: std::ptr::null_mut(),
         DesiredAccess: PRINTER_ACCESS_USE,
     };
 
@@ -193,37 +178,38 @@ fn print_raw_windows(printer_name: &str, data: &[u8]) -> Result<()> {
         OpenPrinterW(
             PCWSTR(printer_name_wide.as_ptr()),
             &mut handle,
-            Some(&defaults as *const _),
+            Some(&defaults),
         )
+        .ok()
         .context("OpenPrinterW failed")?;
     }
 
     if handle.is_invalid() {
-        bail!("Failed to open printer '{}'", printer_name);
+        bail!("Printer handle invalid");
     }
 
     let mut doc_name: Vec<u16> =
         "PrintBridge Job\0".encode_utf16().collect();
 
-    let mut datatype: Vec<u16> =
+    let mut raw: Vec<u16> =
         "RAW\0".encode_utf16().collect();
 
     let doc_info = DOC_INFO_1W {
         pDocName: PWSTR(doc_name.as_mut_ptr()),
         pOutputFile: PWSTR::null(),
-        pDatatype: PWSTR(datatype.as_mut_ptr()),
+        pDatatype: PWSTR(raw.as_mut_ptr()),
     };
 
     let result: Result<()> = (|| {
         unsafe {
-            let job_id = StartDocPrinterW(
+            let job = StartDocPrinterW(
                 handle,
                 1,
                 &doc_info as *const _ as *const _,
             );
 
-            if job_id == 0 {
-                bail!("StartDocPrinterW failed — job id 0");
+            if job == 0 {
+                bail!("StartDocPrinterW failed");
             }
 
             StartPagePrinter(handle)
@@ -241,11 +227,7 @@ fn print_raw_windows(printer_name: &str, data: &[u8]) -> Result<()> {
             .ok()
             .context("WritePrinter failed")?;
 
-            debug!(
-                "Wrote {}/{} bytes to printer",
-                written,
-                data.len()
-            );
+            debug!("Written {} bytes", written);
 
             EndPagePrinter(handle)
                 .ok()
@@ -265,4 +247,4 @@ fn print_raw_windows(printer_name: &str, data: &[u8]) -> Result<()> {
 
     result
 }
-```
+
