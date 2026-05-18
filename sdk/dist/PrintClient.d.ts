@@ -1,0 +1,32 @@
+import type { PrintBridgeOptions, PrinterInfo, PrintOptions, PrintResult, StatusResult, EventType } from './types';
+type EventCallback = (...args: any[]) => void;
+export declare class PrintClient {
+    private url;
+    private ws;
+    private pending;
+    private listeners;
+    private reconnect;
+    private maxReconnectAttempts;
+    private reconnectDelay;
+    private reconnectAttempts;
+    private reconnectTimer;
+    private _connected;
+    private _destroyed;
+    private msgCounter;
+    constructor(opts?: PrintBridgeOptions);
+    connect(): Promise<void>;
+    disconnect(): void;
+    get connected(): boolean;
+    listPrinters(): Promise<PrinterInfo[]>;
+    print(opts: PrintOptions): Promise<PrintResult>;
+    status(): Promise<StatusResult>;
+    ping(): Promise<boolean>;
+    on(event: EventType, cb: EventCallback): this;
+    off(event: EventType, cb: EventCallback): this;
+    private emit;
+    private send;
+    private handleMessage;
+    private scheduleReconnect;
+    private uint8ToBase64;
+}
+export {};

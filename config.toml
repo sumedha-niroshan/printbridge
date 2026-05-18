@@ -1,0 +1,18 @@
+[server]
+port = 8282
+host = "127.0.0.1"
+allowed_origins = [
+  "http://localhost",
+  "http://localhost:3000",
+  "http://localhost:8080",
+  "https://yourdomain.com"
+]
+
+[cert]
+# Auto-generated on first run at this path (relative to app data dir)
+path = "certs/printbridge.pfx"
+common_name = "PrintBridge Local"
+
+[logging]
+# trace | debug | info | warn | error
+level = "info"
