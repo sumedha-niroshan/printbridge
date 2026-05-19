@@ -19,6 +19,8 @@ mod service;
 
 #[tokio::main]
 async fn main() -> Result<()> {
+    rustls::crypto::ring::default_provider().install_default().ok();
+
     // If running as a Windows service, hand off to service handler
     #[cfg(windows)]
     if std::env::args().any(|a| a == "--service") {

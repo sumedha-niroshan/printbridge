@@ -33,11 +33,25 @@ pub fn list_printers() -> Result<Vec<PrinterInfo>> {
 
     #[cfg(not(windows))]
     {
-        Ok(vec![PrinterInfo {
-            name: "DEV_PRINTER".to_string(),
-            is_default: true,
-            is_online: true,
-        }])
+        // Simple Linux support for USB thermal printers
+        let mut printers = vec![];
+        if std::path::Path::new("/dev/usb/lp0").exists() {
+            printers.push(PrinterInfo {
+                name: "/dev/usb/lp0".to_string(),
+                is_default: true,
+                is_online: true,
+            });
+        }
+        
+        if printers.is_empty() {
+            printers.push(PrinterInfo {
+                name: "DEV_PRINTER".to_string(),
+                is_default: true,
+                is_online: true,
+            });
+        }
+        
+        Ok(printers)
     }
 }
 
@@ -150,7 +164,20 @@ pub fn print_raw(
 
     #[cfg(not(windows))]
     {
-        debug!("DEV MODE print");
+        if printer_name == "/dev/usb/lp0" || printer_name == "default" {
+            // Direct write to Linux USB character device
+            use std::io::Write;
+            let mut file = std::fs::OpenOptions::new()
+                .write(true)
+                .open("/dev/usb/lp0")
+                .context("Failed to open /dev/usb/lp0 - Are you in the 'lp' group or root?")?;
+            
+            file.write_all(data).context("Failed to write to printer device")?;
+            file.flush().context("Failed to flush printer device")?;
+            debug!("Successfully printed to Linux USB printer");
+        } else {
+            debug!("DEV MODE print: ignored for {}", printer_name);
+        }
 
         Ok(())
     }
