@@ -3,12 +3,14 @@ mod config;
 mod printer;
 mod protocol;
 mod websocket;
+mod gui;
 
 use std::path::PathBuf;
-use std::sync::Arc;
+use std::sync::{Arc, Mutex};
 
 use anyhow::{Context, Result};
 use directories::ProjectDirs;
+use once_cell::sync::Lazy;
 use tokio_rustls::rustls::{self, ServerConfig as TlsServerConfig};
 use rustls_pemfile::{certs, pkcs8_private_keys};
 use tracing::info;
@@ -17,20 +19,52 @@ use tracing_subscriber::EnvFilter;
 #[cfg(windows)]
 mod service;
 
-#[tokio::main]
-async fn main() -> Result<()> {
-    rustls::crypto::ring::default_provider().install_default().ok();
+// Global thread-safe logs buffer shared between tracing and GUI
+pub static LOGS: Lazy<Arc<Mutex<Vec<String>>>> = Lazy::new(|| Arc::new(Mutex::new(Vec::new())));
 
-    // If running as a Windows service, hand off to service handler
-    #[cfg(windows)]
-    if std::env::args().any(|a| a == "--service") {
-        return service::run_as_service();
-    }
-
-    run().await
+// Custom writer to stream tracing logs into the GUI and stdout
+#[derive(Clone)]
+pub struct GuiLogWriter {
+    logs: Arc<Mutex<Vec<String>>>,
 }
 
-pub async fn run() -> Result<()> {
+impl std::io::Write for GuiLogWriter {
+    fn write(&mut self, buf: &[u8]) -> std::io::Result<usize> {
+        let s = String::from_utf8_lossy(buf).trim().to_string();
+        if !s.is_empty() {
+            if let Ok(mut logs) = self.logs.lock() {
+                if logs.len() > 500 {
+                    logs.remove(0);
+                }
+                logs.push(s);
+            }
+        }
+        std::io::stdout().write_all(buf)?;
+        Ok(buf.len())
+    }
+
+    fn flush(&mut self) -> std::io::Result<()> {
+        std::io::stdout().flush()
+    }
+}
+
+pub struct GuiLogWriterMaker {
+    logs: Arc<Mutex<Vec<String>>>,
+}
+
+impl<'a> tracing_subscriber::fmt::MakeWriter<'a> for GuiLogWriterMaker {
+    type Writer = GuiLogWriter;
+
+    fn make_writer(&self) -> Self::Writer {
+        GuiLogWriter {
+            logs: self.logs.clone(),
+        }
+    }
+}
+
+fn main() -> Result<()> {
+    rustls::crypto::ring::default_provider().install_default().ok();
+
     // Determine data directory
     let data_dir = data_dir();
     std::fs::create_dir_all(&data_dir).context("Failed to create data dir")?;
@@ -46,24 +80,68 @@ pub async fn run() -> Result<()> {
         default
     };
 
-    // Setup logging
+    // Setup logging with GUI writer and disable ANSI colors so logs in UI are clean
+    let writer_maker = GuiLogWriterMaker { logs: LOGS.clone() };
     let filter = EnvFilter::try_from_default_env()
         .unwrap_or_else(|_| EnvFilter::new(&config.logging.level));
-    tracing_subscriber::fmt().with_env_filter(filter).init();
+    tracing_subscriber::fmt()
+        .with_env_filter(filter)
+        .with_writer(writer_maker)
+        .with_ansi(false)
+        .init();
 
-    info!("PrintBridge v{} starting", env!("CARGO_PKG_VERSION"));
+    info!("PXL Print Client v{} starting", env!("CARGO_PKG_VERSION"));
     info!("Data directory: {:?}", data_dir);
 
     // TLS certificate
     let cert_paths = cert::ensure_cert(&data_dir)?;
 
     // Build rustls config
-    let tls_config = build_tls_config(&cert_paths)?;
+    let tls_config = Arc::new(build_tls_config(&cert_paths)?);
 
-    let config = Arc::new(config);
+    // If running as a Windows service, run headless
+    #[cfg(windows)]
+    if std::env::args().any(|a| a == "--service") {
+        let rt = tokio::runtime::Runtime::new().context("Failed to create tokio runtime")?;
+        return rt.block_on(async {
+            service::run_as_service()
+        });
+    }
 
-    // Run WebSocket server
-    websocket::run_server(config, Arc::new(tls_config)).await
+    // Default: start the Tokio runtime in background and launch native eframe GUI
+    let rt = Arc::new(tokio::runtime::Runtime::new().context("Failed to create tokio runtime")?);
+    
+    let options = eframe::NativeOptions {
+        viewport: eframe::egui::ViewportBuilder::default()
+            .with_inner_size([720.0, 420.0])
+            .with_resizable(false),
+        ..Default::default()
+    };
+
+    eframe::run_native(
+        "PXL Print Client",
+        options,
+        Box::new(move |cc| {
+            Box::new(gui::PxlApp::new(
+                cc,
+                config_path,
+                config,
+                LOGS.clone(),
+                rt,
+                tls_config,
+            ))
+        }),
+    ).map_err(|e| anyhow::anyhow!("Failed to run GUI: {:?}", e))
+}
+
+/// Headless run mode used by the Windows Service
+pub async fn run() -> Result<()> {
+    let data_dir = data_dir();
+    let config_path = data_dir.join("config.toml");
+    let config = config::Config::load(&config_path)?;
+    let cert_paths = cert::ensure_cert(&data_dir)?;
+    let tls_config = Arc::new(build_tls_config(&cert_paths)?);
+    websocket::run_server(Arc::new(config), tls_config).await
 }
 
 fn build_tls_config(cert_paths: &cert::CertPaths) -> Result<TlsServerConfig> {
@@ -107,7 +185,7 @@ fn data_dir() -> PathBuf {
     }
 
     // Default: use system app data directory
-    if let Some(proj) = ProjectDirs::from("com", "printbridge", "PrintBridge") {
+    if let Some(proj) = ProjectDirs::from("com", "pxl", "PXL") {
         proj.data_dir().to_path_buf()
     } else {
         PathBuf::from(".")

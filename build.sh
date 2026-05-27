@@ -56,18 +56,18 @@ echo "✓ Rust built"
 # ── Package ───────────────────────────────────────────────────────────────────
 echo ""
 echo "▶ Packaging release..."
-mkdir -p dist/PrintBridge-windows-x64
+mkdir -p dist/PXL-windows-x64
 
-cp target/x86_64-pc-windows-gnu/release/printbridge.exe  dist/PrintBridge-windows-x64/PrintBridge.exe
-cp sdk/dist/printbridge.min.js                            dist/PrintBridge-windows-x64/
-cp sdk/dist/printbridge.esm.js                            dist/PrintBridge-windows-x64/
-cp scripts/install-cert.ps1                               dist/PrintBridge-windows-x64/
-cp scripts/install-service.ps1                            dist/PrintBridge-windows-x64/
-cp config.toml                                            dist/PrintBridge-windows-x64/
-cp README.md                                              dist/PrintBridge-windows-x64/ 2>/dev/null || true
+cp target/x86_64-pc-windows-gnu/release/pxl.exe  dist/PXL-windows-x64/PXL.exe
+cp sdk/dist/printbridge.min.js                   dist/PXL-windows-x64/
+cp sdk/dist/printbridge.esm.js                   dist/PXL-windows-x64/
+cp scripts/install-cert.ps1                      dist/PXL-windows-x64/
+cp scripts/install-service.ps1                   dist/PXL-windows-x64/
+cp config.toml                                   dist/PXL-windows-x64/
+cp README.md                                     dist/PXL-windows-x64/ 2>/dev/null || true
 
 cd dist
-zip -r PrintBridge-windows-x64.zip PrintBridge-windows-x64/
+zip -r PXL-windows-x64.zip PXL-windows-x64/
 cd ..
 
 echo ""
@@ -75,13 +75,13 @@ echo "╔═══════════════════════�
 echo "║            Build Complete!            ║"
 echo "╚══════════════════════════════════════╝"
 echo ""
-echo "  EXE  → dist/PrintBridge-windows-x64/PrintBridge.exe"
-echo "  SDK  → dist/PrintBridge-windows-x64/printbridge.min.js"
-echo "  ZIP  → dist/PrintBridge-windows-x64.zip"
+echo "  EXE  → dist/PXL-windows-x64/PXL.exe"
+echo "  SDK  → dist/PXL-windows-x64/printbridge.min.js"
+echo "  ZIP  → dist/PXL-windows-x64.zip"
 echo ""
 echo "  On Windows:"
 echo "  1. Extract the ZIP"
-echo "  2. Run PrintBridge.exe once (generates TLS cert)"
+echo "  2. Run PXL.exe once (generates TLS cert)"
 echo "  3. Run install-cert.ps1 as Administrator"
 echo "  4. Run install-service.ps1 as Administrator"
 echo ""

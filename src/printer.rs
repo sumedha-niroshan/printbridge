@@ -1,7 +1,8 @@
-use anyhow::{bail, Context, Result};
+use anyhow::{Context, Result};
 use tracing::{debug, info};
 
 #[cfg(windows)]
+use anyhow::bail;
 use windows::{
     core::{PCWSTR, PWSTR},
     Win32::{

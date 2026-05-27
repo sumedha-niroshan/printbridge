@@ -1,0 +1,25 @@
+# Rust build artifacts
+target/
+
+# Local configuration overrides or generated certs
+certs/
+*.pfx
+*.crt
+*.key
+*.pem
+
+# Packages & distributable outputs
+dist/
+
+# Log files
+*.log
+
+# Node/npm dependency directories in SDK
+node_modules/
+sdk/node_modules/
+sdk/dist/
+
+# OS-specific files
+.DS_Store
+Thumbs.db
+Desktop.ini

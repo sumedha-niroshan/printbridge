@@ -52,6 +52,7 @@ pub struct OutgoingMessage {
     pub error: Option<String>,
 }
 
+#[allow(dead_code)]
 #[derive(Debug, Serialize)]
 #[serde(rename_all = "camelCase")]
 pub struct PrinterInfo {

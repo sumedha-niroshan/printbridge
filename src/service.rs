@@ -13,7 +13,7 @@ use windows_service::{
     service_dispatcher,
 };
 
-const SERVICE_NAME: &str = "PrintBridge";
+const SERVICE_NAME: &str = "PXL";
 
 define_windows_service!(ffi_service_main, service_main);
 

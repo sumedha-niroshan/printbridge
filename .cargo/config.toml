@@ -1,2 +1,3 @@
-# Cross-compilation config is written by CI (build.yml) and build.sh at build time.
-# Do not add [target.*] sections here — they will conflict with the CI-generated config.
+[target.x86_64-pc-windows-gnu]
+linker = "x86_64-w64-mingw32-gcc"
+ar = "x86_64-w64-mingw32-ar"

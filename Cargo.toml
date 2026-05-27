@@ -1,12 +1,12 @@
 [package]
-name = "printbridge"
+name = "pxl"
 version = "1.0.0"
 edition = "2021"
-authors = ["PrintBridge"]
+authors = ["PXL"]
 description = "Silent browser print client for Windows"
 
 [[bin]]
-name = "printbridge"
+name = "pxl"
 path = "src/main.rs"
 
 [dependencies]
@@ -29,6 +29,8 @@ directories = "5.0"
 toml = "0.8"
 futures = "0.3"
 http = "1.1"
+eframe = "0.27"
+once_cell = "1.19"
 
 [target.'cfg(windows)'.dependencies]
 windows = { version = "0.57", features = [

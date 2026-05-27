@@ -1,14 +1,14 @@
-# PrintBridge — Install self-signed certificate into Windows Trusted Root
+# PXL — Install self-signed certificate into Windows Trusted Root
 # Run as Administrator
 
 param(
-    [string]$CertPath = "$env:APPDATA\PrintBridge\certs\printbridge.crt"
+    [string]$CertPath = "$env:APPDATA\PXL\certs\printbridge.crt"
 )
 
 $ErrorActionPreference = "Stop"
 
-Write-Host "PrintBridge Certificate Installer" -ForegroundColor Cyan
-Write-Host "==================================" -ForegroundColor Cyan
+Write-Host "PXL Certificate Installer" -ForegroundColor Cyan
+Write-Host "=========================" -ForegroundColor Cyan
 
 # Check admin
 $principal = [Security.Principal.WindowsPrincipal][Security.Principal.WindowsIdentity]::GetCurrent()
@@ -17,24 +17,24 @@ if (-not $principal.IsInRole([Security.Principal.WindowsBuiltInRole]::Administra
     exit 1
 }
 
-# Wait for cert file (PrintBridge generates it on first run)
+# Wait for cert file (PXL generates it on first run)
 if (-not (Test-Path $CertPath)) {
     Write-Host "Certificate not found at $CertPath" -ForegroundColor Yellow
-    Write-Host "Starting PrintBridge to generate certificate..." -ForegroundColor Yellow
+    Write-Host "Starting PXL to generate certificate..." -ForegroundColor Yellow
 
-    $exePath = Join-Path $PSScriptRoot "PrintBridge.exe"
+    $exePath = Join-Path $PSScriptRoot "PXL.exe"
     if (Test-Path $exePath) {
         $proc = Start-Process $exePath -PassThru
         Start-Sleep -Seconds 3
         $proc.Kill()
     } else {
-        Write-Error "PrintBridge.exe not found. Run PrintBridge.exe once first to generate the certificate."
+        Write-Error "PXL.exe not found. Run PXL.exe once first to generate the certificate."
         exit 1
     }
 }
 
 if (-not (Test-Path $CertPath)) {
-    Write-Error "Certificate still not found at $CertPath. Please run PrintBridge.exe manually first."
+    Write-Error "Certificate still not found at $CertPath. Please run PXL.exe manually first."
     exit 1
 }
 
@@ -53,5 +53,5 @@ Write-Host ""
 Write-Host "Certificate installed successfully!" -ForegroundColor Green
 Write-Host "Thumbprint: $($cert.Thumbprint)" -ForegroundColor Gray
 Write-Host ""
-Write-Host "You can now use PrintBridge from Chrome, Edge, and Firefox." -ForegroundColor Cyan
+Write-Host "You can now use PXL from Chrome, Edge, and Firefox." -ForegroundColor Cyan
 Write-Host "Restart your browser if it was already open." -ForegroundColor Yellow
