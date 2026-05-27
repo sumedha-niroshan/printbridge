@@ -1,4 +1,4 @@
-# PXL — Install self-signed certificate into Windows Trusted Root
+# PXL - Install self-signed certificate into Windows Trusted Root
 # Run as Administrator
 
 param(

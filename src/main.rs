@@ -5,6 +5,9 @@ mod protocol;
 mod websocket;
 mod gui;
 
+#[cfg(windows)]
+mod service;
+
 use std::path::PathBuf;
 use std::sync::{Arc, Mutex};
 
@@ -62,6 +65,25 @@ impl<'a> tracing_subscriber::fmt::MakeWriter<'a> for GuiLogWriterMaker {
 fn main() -> Result<()> {
     rustls::crypto::ring::default_provider().install_default().ok();
 
+    // Check for --service flag
+    let args: Vec<String> = std::env::args().collect();
+    let run_as_service = args.contains(&"--service".to_string());
+
+    if run_as_service {
+        #[cfg(windows)]
+        {
+            return service::run_as_service();
+        }
+        #[cfg(not(windows))]
+        {
+            eprintln!("Service mode is only available on Windows");
+            std::process::exit(1);
+        }
+    }
+
+    // Default: Run GUI mode
+    rustls::crypto::ring::default_provider().install_default().ok();
+
     // Determine data directory
     let data_dir = data_dir();
     std::fs::create_dir_all(&data_dir).context("Failed to create data dir")?;
@@ -87,7 +109,7 @@ fn main() -> Result<()> {
         .with_ansi(false)
         .init();
 
-    info!("PXL Print Client v{} starting", env!("CARGO_PKG_VERSION"));
+    info!("PXL Print Client v{} starting (GUI Mode)", env!("CARGO_PKG_VERSION"));
     info!("Data directory: {:?}", data_dir);
 
     // TLS certificate

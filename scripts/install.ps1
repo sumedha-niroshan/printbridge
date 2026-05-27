@@ -1,4 +1,4 @@
-# PXL — Install to Windows Startup (GUI always runs)
+# PXL - Install to Windows Startup (GUI always runs)
 # Run as Administrator for certificate trust, or as normal user for startup only.
 
 param(
@@ -11,7 +11,7 @@ $AppName = "PXL"
 
 $ErrorActionPreference = "Stop"
 
-# ── Uninstall ─────────────────────────────────────────────────────────────────
+# === Uninstall ===
 if ($Uninstall) {
     Write-Host "Removing PXL from Windows Startup..." -ForegroundColor Yellow
 
@@ -34,11 +34,11 @@ if ($Uninstall) {
     exit 0
 }
 
-# ── Validate ──────────────────────────────────────────────────────────────────
+# === Validate ===
 Write-Host ""
-Write-Host "╔══════════════════════════════════════╗" -ForegroundColor Cyan
-Write-Host "║         PXL Print Client Setup       ║" -ForegroundColor Cyan
-Write-Host "╚══════════════════════════════════════╝" -ForegroundColor Cyan
+Write-Host "+--------------------------------------+" -ForegroundColor Cyan
+Write-Host "|         PXL Print Client Setup       |" -ForegroundColor Cyan
+Write-Host "+--------------------------------------+" -ForegroundColor Cyan
 Write-Host ""
 
 if (-not (Test-Path $ExePath)) {
@@ -48,7 +48,7 @@ if (-not (Test-Path $ExePath)) {
 
 $ExeFullPath = (Resolve-Path $ExePath).Path
 
-# ── Step 1: Configure Port ────────────────────────────────────────────────────
+# === Step 1: Configure Port ===
 Write-Host "[1/3] Configuring PXL on port $Port..." -ForegroundColor White
 
 $AppDataDir = Join-Path $env:APPDATA "com.pxl\PXL\data"
@@ -87,7 +87,7 @@ level = "info"
     Set-Content -Path $ConfigPath -Value $defaultConfig
 }
 
-# ── Step 2: Add to Windows Startup ────────────────────────────────────────────
+# === Step 2: Add to Windows Startup ===
 Write-Host "[2/3] Adding PXL to Windows Startup..." -ForegroundColor White
 
 # Method 1: Registry Run key (most reliable)
@@ -106,7 +106,7 @@ $shortcut.Description = "PXL Silent Print Client"
 $shortcut.Save()
 Write-Host "      Created shortcut: $shortcutPath" -ForegroundColor Gray
 
-# ── Step 3: Generate TLS Certificate ─────────────────────────────────────────
+# === Step 3: Generate TLS Certificate ===
 Write-Host "[3/3] Generating TLS certificate (first run)..." -ForegroundColor White
 
 # Run PXL briefly to generate the self-signed cert, then close
@@ -121,11 +121,11 @@ if (-not $proc.HasExited) {
 }
 Write-Host "      Certificate generated." -ForegroundColor Gray
 
-# ── Done ──────────────────────────────────────────────────────────────────────
+# === Done ===
 Write-Host ""
-Write-Host "╔══════════════════════════════════════╗" -ForegroundColor Green
-Write-Host "║        Installation Complete!        ║" -ForegroundColor Green
-Write-Host "╚══════════════════════════════════════╝" -ForegroundColor Green
+Write-Host "+--------------------------------------+" -ForegroundColor Green
+Write-Host "|        Installation Complete!        |" -ForegroundColor Green
+Write-Host "+--------------------------------------+" -ForegroundColor Green
 Write-Host ""
 Write-Host "  Port    : $Port" -ForegroundColor White
 Write-Host "  Config  : $ConfigPath" -ForegroundColor White

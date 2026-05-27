@@ -12,6 +12,7 @@ pub struct PxlApp {
     config_path: PathBuf,
     config: Config,
     port_input: String,
+    new_origin_input: String,
     printers: Vec<PrinterInfo>,
     selected_printer: String,
     logs: Arc<Mutex<Vec<String>>>,
@@ -39,6 +40,7 @@ impl PxlApp {
         let mut app = Self {
             config_path,
             port_input: config.server.port.to_string(),
+            new_origin_input: String::new(),
             config,
             printers: Vec::new(),
             selected_printer: String::new(),
@@ -200,6 +202,7 @@ impl eframe::App for PxlApp {
                     ui.strong("Configuration");
                     ui.add_space(4.0);
                     
+                    // Port configuration
                     ui.horizontal(|ui| {
                         ui.label("WebSocket Port:");
                         ui.text_edit_singleline(&mut self.port_input);
@@ -219,6 +222,66 @@ impl eframe::App for PxlApp {
                             self.show_status("Invalid Port Number!".to_string());
                         }
                     }
+
+                    ui.add_space(12.0);
+                    ui.separator();
+                    ui.add_space(8.0);
+
+                    // CORS Origins configuration
+                    ui.strong("CORS Allowed Origins");
+                    ui.add_space(4.0);
+
+                    // Display current origins
+                    let origins_copy = self.config.server.allowed_origins.clone();
+                    let mut index_to_remove: Option<usize> = None;
+                    
+                    egui::ScrollArea::vertical()
+                        .max_height(80.0)
+                        .show(ui, |ui| {
+                            for (idx, origin) in origins_copy.iter().enumerate() {
+                                ui.horizontal(|ui| {
+                                    ui.label(origin);
+                                    if ui.button("Remove").clicked() {
+                                        index_to_remove = Some(idx);
+                                    }
+                                });
+                            }
+                        });
+
+                    // Handle removal outside the loop
+                    if let Some(idx) = index_to_remove {
+                        self.config.server.allowed_origins.remove(idx);
+                        if let Err(e) = self.config.save(&self.config_path) {
+                            self.show_status(format!("Failed to save config: {}", e));
+                        } else {
+                            self.show_status("Origin removed".to_string());
+                        }
+                    }
+
+                    ui.add_space(6.0);
+
+                    // Add new origin
+                    ui.horizontal(|ui| {
+                        ui.label("New Origin:");
+                        ui.text_edit_singleline(&mut self.new_origin_input);
+                    });
+
+                    ui.horizontal(|ui| {
+                        if ui.button("Add Origin").clicked() {
+                            let origin = self.new_origin_input.trim().to_string();
+                            if !origin.is_empty() && !self.config.server.allowed_origins.contains(&origin) {
+                                self.config.server.allowed_origins.push(origin);
+                                if let Err(e) = self.config.save(&self.config_path) {
+                                    self.show_status(format!("Failed to save config: {}", e));
+                                } else {
+                                    self.new_origin_input.clear();
+                                    self.show_status("Origin added successfully".to_string());
+                                }
+                            } else {
+                                self.show_status("Invalid or duplicate origin!".to_string());
+                            }
+                        }
+                    });
 
                     ui.add_space(16.0);
                     ui.separator();

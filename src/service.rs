@@ -1,7 +1,9 @@
 #![cfg(windows)]
 
-use anyhow::Result;
+use anyhow::{Context, Result};
 use std::ffi::OsString;
+use std::path::PathBuf;
+use std::sync::Arc;
 use std::time::Duration;
 use windows_service::{
     define_windows_service,
@@ -12,6 +14,10 @@ use windows_service::{
     service_control_handler::{self, ServiceControlHandlerResult},
     service_dispatcher,
 };
+use tracing::info;
+use tracing_subscriber::EnvFilter;
+use rustls_pemfile::{certs, pkcs8_private_keys};
+use tokio_rustls::rustls::{self, ServerConfig as TlsServerConfig};
 
 const SERVICE_NAME: &str = "PXL";
 
@@ -23,6 +29,14 @@ pub fn run_as_service() -> Result<()> {
 }
 
 fn service_main(_args: Vec<OsString>) {
+    // Setup logging for service
+    let filter = EnvFilter::try_from_default_env()
+        .unwrap_or_else(|_| EnvFilter::new("info"));
+    tracing_subscriber::fmt()
+        .with_env_filter(filter)
+        .with_writer(std::io::stdout)
+        .init();
+
     if let Err(e) = run_service() {
         tracing::error!("Service error: {}", e);
     }
@@ -56,13 +70,39 @@ fn run_service() -> Result<()> {
         process_id: None,
     })?;
 
+    info!("PXL Print Service starting");
+
+    // Load configuration
+    let data_dir = get_service_data_dir();
+    std::fs::create_dir_all(&data_dir).context("Failed to create data dir")?;
+
+    let config_path = data_dir.join("config.toml");
+    let config = if config_path.exists() {
+        crate::config::Config::load(&config_path)?
+    } else {
+        let default = crate::config::Config::default();
+        let toml = include_str!("../config.toml");
+        std::fs::write(&config_path, toml).ok();
+        default
+    };
+
+    // TLS certificate
+    let cert_paths = crate::cert::ensure_cert(&data_dir)?;
+    let tls_config = Arc::new(build_tls_config(&cert_paths)?);
+    let config = Arc::new(config);
+
     // Run the async runtime
     let rt = tokio::runtime::Runtime::new()?;
     rt.block_on(async {
         // Start server in background
-        tokio::spawn(async {
-            if let Err(e) = crate::run().await {
-                tracing::error!("Server error: {}", e);
+        tokio::spawn({
+            let config = config.clone();
+            let tls_config = tls_config.clone();
+            async move {
+                match crate::websocket::run_server(config, tls_config).await {
+                    Ok(_) => info!("WebSocket server stopped"),
+                    Err(e) => tracing::error!("WebSocket server error: {}", e),
+                }
             }
         });
 
@@ -85,5 +125,43 @@ fn run_service() -> Result<()> {
         process_id: None,
     })?;
 
+    info!("PXL Print Service stopped");
     Ok(())
+}
+
+fn get_service_data_dir() -> PathBuf {
+    if let Ok(path) = std::env::var("APPDATA") {
+        PathBuf::from(path).join("PXL")
+    } else {
+        PathBuf::from("C:\\ProgramData\\PXL")
+    }
+}
+
+fn build_tls_config(cert_paths: &crate::cert::CertPaths) -> Result<TlsServerConfig> {
+    let cert_pem = std::fs::read(&cert_paths.cert_pem)
+        .context("Failed to read cert PEM")?;
+    let key_pem = std::fs::read(&cert_paths.key_pem)
+        .context("Failed to read key PEM")?;
+
+    let cert_chain: Vec<rustls::pki_types::CertificateDer<'static>> =
+        certs(&mut cert_pem.as_ref())
+            .collect::<Result<Vec<_>, _>>()
+            .context("Failed to parse certificate PEM")?;
+
+    let mut keys: Vec<rustls::pki_types::PrivateKeyDer<'static>> =
+        pkcs8_private_keys(&mut key_pem.as_ref())
+            .map(|k| k.map(rustls::pki_types::PrivateKeyDer::Pkcs8))
+            .collect::<Result<Vec<_>, _>>()
+            .context("Failed to parse private key")?;
+
+    if keys.is_empty() {
+        anyhow::bail!("No private keys found in key PEM file");
+    }
+
+    let tls_config = TlsServerConfig::builder()
+        .with_no_client_auth()
+        .with_single_cert(cert_chain, keys.remove(0))
+        .context("Failed to build TLS config")?;
+
+    Ok(tls_config)
 }
