@@ -16,9 +16,6 @@ use rustls_pemfile::{certs, pkcs8_private_keys};
 use tracing::info;
 use tracing_subscriber::EnvFilter;
 
-#[cfg(windows)]
-mod service;
-
 // Global thread-safe logs buffer shared between tracing and GUI
 pub static LOGS: Lazy<Arc<Mutex<Vec<String>>>> = Lazy::new(|| Arc::new(Mutex::new(Vec::new())));
 
@@ -99,16 +96,7 @@ fn main() -> Result<()> {
     // Build rustls config
     let tls_config = Arc::new(build_tls_config(&cert_paths)?);
 
-    // If running as a Windows service, run headless
-    #[cfg(windows)]
-    if std::env::args().any(|a| a == "--service") {
-        let rt = tokio::runtime::Runtime::new().context("Failed to create tokio runtime")?;
-        return rt.block_on(async {
-            service::run_as_service()
-        });
-    }
-
-    // Default: start the Tokio runtime in background and launch native eframe GUI
+    // Always start the Tokio runtime in background and launch native eframe GUI
     let rt = Arc::new(tokio::runtime::Runtime::new().context("Failed to create tokio runtime")?);
     
     let options = eframe::NativeOptions {
@@ -132,16 +120,6 @@ fn main() -> Result<()> {
             ))
         }),
     ).map_err(|e| anyhow::anyhow!("Failed to run GUI: {:?}", e))
-}
-
-/// Headless run mode used by the Windows Service
-pub async fn run() -> Result<()> {
-    let data_dir = data_dir();
-    let config_path = data_dir.join("config.toml");
-    let config = config::Config::load(&config_path)?;
-    let cert_paths = cert::ensure_cert(&data_dir)?;
-    let tls_config = Arc::new(build_tls_config(&cert_paths)?);
-    websocket::run_server(Arc::new(config), tls_config).await
 }
 
 fn build_tls_config(cert_paths: &cert::CertPaths) -> Result<TlsServerConfig> {

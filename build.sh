@@ -61,8 +61,8 @@ mkdir -p dist/PXL-windows-x64
 cp target/x86_64-pc-windows-gnu/release/pxl.exe  dist/PXL-windows-x64/PXL.exe
 cp sdk/dist/printbridge.min.js                   dist/PXL-windows-x64/
 cp sdk/dist/printbridge.esm.js                   dist/PXL-windows-x64/
+cp scripts/install.ps1                           dist/PXL-windows-x64/
 cp scripts/install-cert.ps1                      dist/PXL-windows-x64/
-cp scripts/install-service.ps1                   dist/PXL-windows-x64/
 cp config.toml                                   dist/PXL-windows-x64/
 cp README.md                                     dist/PXL-windows-x64/ 2>/dev/null || true
 
@@ -81,7 +81,8 @@ echo "  ZIP  → dist/PXL-windows-x64.zip"
 echo ""
 echo "  On Windows:"
 echo "  1. Extract the ZIP"
-echo "  2. Run PXL.exe once (generates TLS cert)"
-echo "  3. Run install-cert.ps1 as Administrator"
-echo "  4. Run install-service.ps1 as Administrator"
+echo "  2. Run: install.ps1 -Port 8282"
+echo "  3. Run: install-cert.ps1 (as Administrator)"
+echo "  4. Double-click PXL.exe"
 echo ""
+

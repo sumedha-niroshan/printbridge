@@ -42,7 +42,6 @@ windows = { version = "0.57", features = [
   "Win32_Security",
   "Win32_System_Registry",
 ] }
-windows-service = "0.7"
 
 [profile.release]
 opt-level = 3

@@ -3,6 +3,7 @@ use tracing::{debug, info};
 
 #[cfg(windows)]
 use anyhow::bail;
+#[cfg(windows)]
 use windows::{
     core::{PCWSTR, PWSTR},
     Win32::{
