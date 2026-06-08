@@ -1,3 +1,5 @@
+#![cfg_attr(not(debug_assertions), windows_subsystem = "windows")]
+
 mod cert;
 mod config;
 mod printer;
@@ -12,7 +14,6 @@ use std::path::PathBuf;
 use std::sync::{Arc, Mutex};
 
 use anyhow::{Context, Result};
-use directories::ProjectDirs;
 use once_cell::sync::Lazy;
 use tokio_rustls::rustls::{self, ServerConfig as TlsServerConfig};
 use rustls_pemfile::{certs, pkcs8_private_keys};
@@ -21,6 +22,10 @@ use tracing_subscriber::EnvFilter;
 
 // Global thread-safe logs buffer shared between tracing and GUI
 pub static LOGS: Lazy<Arc<Mutex<Vec<String>>>> = Lazy::new(|| Arc::new(Mutex::new(Vec::new())));
+
+// Global flags and context to wake up the GUI when another instance is launched
+pub static WAKE_GUI: std::sync::atomic::AtomicBool = std::sync::atomic::AtomicBool::new(false);
+pub static EGUI_CTX: Lazy<Mutex<Option<eframe::egui::Context>>> = Lazy::new(|| Mutex::new(None));
 
 // Custom writer to stream tracing logs into the GUI and stdout
 #[derive(Clone)]
@@ -65,24 +70,57 @@ impl<'a> tracing_subscriber::fmt::MakeWriter<'a> for GuiLogWriterMaker {
 fn main() -> Result<()> {
     rustls::crypto::ring::default_provider().install_default().ok();
 
-    // Check for --service flag
+    // Check for command line flags
     let args: Vec<String> = std::env::args().collect();
-    let run_as_service = args.contains(&"--service".to_string());
+    let run_service = args.contains(&"--service".to_string());
 
-    if run_as_service {
-        #[cfg(windows)]
-        {
+    // Default: Run GUI (like QZ Tray — double-click opens the control panel)
+    // With --service flag: Run as Windows Service (for SCM-managed background mode)
+    #[cfg(windows)]
+    {
+        if run_service {
             return service::run_as_service();
-        }
-        #[cfg(not(windows))]
-        {
-            eprintln!("Service mode is only available on Windows");
-            std::process::exit(1);
         }
     }
 
-    // Default: Run GUI mode
-    rustls::crypto::ring::default_provider().install_default().ok();
+    // Run GUI mode (default)
+
+    // Enforce single instance and handle wake-up of existing instance
+    let wake_port = 28283;
+    let wake_addr = format!("127.0.0.1:{}", wake_port);
+    
+    let _wake_listener = match std::net::TcpListener::bind(&wake_addr) {
+        Ok(listener) => {
+            // We are the first instance. Clone the listener for the background thread
+            // so we can keep the original handle alive in this scope.
+            let thread_listener = listener.try_clone().expect("failed to clone wake listener");
+            std::thread::spawn(move || {
+                for stream in thread_listener.incoming() {
+                    if let Ok(_stream) = stream {
+                        WAKE_GUI.store(true, std::sync::atomic::Ordering::SeqCst);
+                        // Also set the SHOW_GUI flag so the window gets
+                        // un-minimized through the same path as tray clicks
+                        #[cfg(windows)]
+                        gui::SHOW_GUI.store(true, std::sync::atomic::Ordering::SeqCst);
+                        if let Ok(guard) = EGUI_CTX.lock() {
+                            if let Some(ref ctx) = *guard {
+                                ctx.request_repaint();
+                            }
+                        }
+                    }
+                }
+            });
+            listener
+        }
+        Err(_) => {
+            // Another instance is already running. Signal it to wake up, then exit.
+            if let Ok(mut stream) = std::net::TcpStream::connect(&wake_addr) {
+                use std::io::Write;
+                let _ = stream.write_all(b"wake\n");
+            }
+            return Ok(());
+        }
+    };
 
     // Determine data directory
     let data_dir = data_dir();
@@ -121,10 +159,26 @@ fn main() -> Result<()> {
     // Always start the Tokio runtime in background and launch native eframe GUI
     let rt = Arc::new(tokio::runtime::Runtime::new().context("Failed to create tokio runtime")?);
     
+    // Load PXL icon for window
+    let icon_data = {
+        let icon_bytes = include_bytes!("../icons/PXL Icon.png");
+        let icon_image = image::load_from_memory_with_format(icon_bytes, image::ImageFormat::Png)
+            .expect("Failed to decode PXL icon");
+        let rgba = icon_image.to_rgba8();
+        let (w, h) = rgba.dimensions();
+        eframe::egui::IconData {
+            rgba: rgba.into_raw(),
+            width: w,
+            height: h,
+        }
+    };
+
     let options = eframe::NativeOptions {
         viewport: eframe::egui::ViewportBuilder::default()
-            .with_inner_size([720.0, 420.0])
-            .with_resizable(false),
+            .with_inner_size([520.0, 420.0])
+            .with_min_inner_size([400.0, 320.0])
+            .with_resizable(true)
+            .with_icon(std::sync::Arc::new(icon_data)),
         ..Default::default()
     };
 
@@ -184,10 +238,10 @@ fn data_dir() -> PathBuf {
         }
     }
 
-    // Default: use system app data directory
-    if let Some(proj) = ProjectDirs::from("com", "pxl", "PXL") {
-        proj.data_dir().to_path_buf()
+    // Default: use system app data directory (matching service mode)
+    if let Ok(path) = std::env::var("APPDATA") {
+        PathBuf::from(path).join("PXL")
     } else {
-        PathBuf::from(".")
+        PathBuf::from("C:\\ProgramData\\PXL")
     }
 }

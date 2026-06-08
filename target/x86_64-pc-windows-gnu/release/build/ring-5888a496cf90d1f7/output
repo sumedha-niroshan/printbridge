@@ -70,7 +70,7 @@ CFLAGS_x86_64_pc_windows_gnu = None
 cargo:rerun-if-env-changed=CFLAGS_x86_64-pc-windows-gnu
 CFLAGS_x86_64-pc-windows-gnu = None
 cargo:rustc-link-lib=static=ring_core_0_17_14__test
-cargo:rustc-link-search=native=/home/sumedha/Downloads/printbridge-source/printbridge/target/x86_64-pc-windows-gnu/release/build/ring-5888a496cf90d1f7/out
+cargo:rustc-link-search=native=/home/sumedha/Documents/Talentfort/pxl-new/printbridge (2)/printbridge/printbridge/target/x86_64-pc-windows-gnu/release/build/ring-5888a496cf90d1f7/out
 cargo:rerun-if-changed=crypto/chacha/asm/chacha-armv4.pl
 cargo:rerun-if-changed=crypto/chacha/asm/chacha-armv8.pl
 cargo:rerun-if-changed=crypto/chacha/asm/chacha-x86.pl

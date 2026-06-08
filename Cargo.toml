@@ -9,6 +9,10 @@ description = "Silent browser print client for Windows"
 name = "pxl"
 path = "src/main.rs"
 
+[[bin]]
+name = "installer"
+path = "src/bin/installer.rs"
+
 [dependencies]
 tokio = { version = "1.37", features = ["full"] }
 tokio-tungstenite = { version = "0.21", features = ["rustls-tls-native-roots"] }
@@ -31,6 +35,7 @@ futures = "0.3"
 http = "1.1"
 eframe = "0.27"
 once_cell = "1.19"
+image = { version = "0.24", default-features = false, features = ["png"] }
 
 [target.'cfg(windows)'.dependencies]
 windows = { version = "0.57", features = [
@@ -43,6 +48,11 @@ windows = { version = "0.57", features = [
   "Win32_System_Registry",
 ] }
 windows-service = "0.6"
+winreg = "0.52"
+tray-icon = "0.14"
+
+[build-dependencies]
+embed-resource = "2.4"
 
 [profile.release]
 opt-level = 3

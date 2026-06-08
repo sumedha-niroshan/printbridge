@@ -1,0 +1,24 @@
+{
+  "name": "printbridge-sdk",
+  "version": "1.0.0",
+  "description": "Browser SDK for PrintBridge silent print client",
+  "main": "dist/printbridge.cjs.js",
+  "module": "dist/printbridge.esm.js",
+  "browser": "dist/printbridge.min.js",
+  "types": "dist/index.d.ts",
+  "files": ["dist"],
+  "scripts": {
+    "build": "npm run build:types && npm run build:iife && npm run build:esm && npm run build:cjs",
+    "build:iife": "esbuild src/index.ts --bundle --minify --format=iife --global-name=PrintBridge --outfile=dist/printbridge.min.js",
+    "build:esm":  "esbuild src/index.ts --bundle --format=esm --outfile=dist/printbridge.esm.js",
+    "build:cjs":  "esbuild src/index.ts --bundle --format=cjs --outfile=dist/printbridge.cjs.js",
+    "build:types": "tsc --emitDeclarationOnly --declaration --outDir dist",
+    "dev": "esbuild src/index.ts --bundle --format=iife --global-name=PrintBridge --outfile=dist/printbridge.min.js --watch"
+  },
+  "devDependencies": {
+    "esbuild": "^0.21.0",
+    "typescript": "^5.4.0"
+  },
+  "keywords": ["print", "escpos", "thermal", "websocket"],
+  "license": "MIT"
+}
