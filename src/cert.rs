@@ -1,5 +1,5 @@
 use anyhow::{Context, Result};
-use rcgen::{CertificateParams, DistinguishedName, DnType, SanType, KeyPair};
+use rcgen::{CertificateParams, DistinguishedName, DnType, KeyPair, SanType};
 use std::fs;
 use std::path::{Path, PathBuf};
 use tracing::{info, warn};
@@ -16,7 +16,7 @@ pub fn ensure_cert(data_dir: &Path) -> Result<CertPaths> {
     fs::create_dir_all(&cert_dir).context("Failed to create certs directory")?;
 
     let cert_pem = cert_dir.join("printbridge.crt");
-    let key_pem  = cert_dir.join("printbridge.key");
+    let key_pem = cert_dir.join("printbridge.key");
 
     if cert_pem.exists() && key_pem.exists() {
         if !is_cert_expired(&cert_pem) {
@@ -37,7 +37,7 @@ fn generate_cert(cert_pem: &Path, key_pem: &Path) -> Result<()> {
     let mut params = CertificateParams::default();
 
     params.not_before = rcgen::date_time_ymd(2024, 1, 1);
-    params.not_after  = rcgen::date_time_ymd(2027, 1, 1);
+    params.not_after = rcgen::date_time_ymd(2027, 1, 1);
 
     let mut dn = DistinguishedName::new();
     dn.push(DnType::CommonName, "PrintBridge Local");
@@ -46,8 +46,10 @@ fn generate_cert(cert_pem: &Path, key_pem: &Path) -> Result<()> {
 
     // rcgen 0.13: DnsName takes a plain String (Ia5String wrapper is internal)
     params.subject_alt_names = vec![
-        SanType::DnsName(rcgen::Ia5String::try_from("localhost".to_string())
-            .map_err(|e| anyhow::anyhow!("Invalid SAN DNS name: {}", e))?),
+        SanType::DnsName(
+            rcgen::Ia5String::try_from("localhost".to_string())
+                .map_err(|e| anyhow::anyhow!("Invalid SAN DNS name: {}", e))?,
+        ),
         SanType::IpAddress(std::net::IpAddr::V4(std::net::Ipv4Addr::new(127, 0, 0, 1))),
     ];
 

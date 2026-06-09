@@ -4,19 +4,10 @@ use serde::{Deserialize, Serialize};
 #[derive(Debug, Deserialize)]
 #[serde(tag = "action", rename_all = "camelCase")]
 pub enum IncomingMessage {
-    ListPrinters {
-        id: String,
-    },
-    Print {
-        id: String,
-        payload: PrintPayload,
-    },
-    Status {
-        id: String,
-    },
-    Ping {
-        id: String,
-    },
+    ListPrinters { id: String },
+    Print { id: String, payload: PrintPayload },
+    Status { id: String },
+    Ping { id: String },
 }
 
 #[derive(Debug, Deserialize)]

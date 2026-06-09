@@ -2,10 +2,10 @@
 
 mod cert;
 mod config;
+mod gui;
 mod printer;
 mod protocol;
 mod websocket;
-mod gui;
 
 #[cfg(windows)]
 mod service;
@@ -15,8 +15,8 @@ use std::sync::{Arc, Mutex};
 
 use anyhow::{Context, Result};
 use once_cell::sync::Lazy;
-use tokio_rustls::rustls::{self, ServerConfig as TlsServerConfig};
 use rustls_pemfile::{certs, pkcs8_private_keys};
+use tokio_rustls::rustls::{self, ServerConfig as TlsServerConfig};
 use tracing::info;
 use tracing_subscriber::EnvFilter;
 
@@ -68,7 +68,9 @@ impl<'a> tracing_subscriber::fmt::MakeWriter<'a> for GuiLogWriterMaker {
 }
 
 fn main() -> Result<()> {
-    rustls::crypto::ring::default_provider().install_default().ok();
+    rustls::crypto::ring::default_provider()
+        .install_default()
+        .ok();
 
     // Check for command line flags
     let args: Vec<String> = std::env::args().collect();
@@ -88,7 +90,7 @@ fn main() -> Result<()> {
     // Enforce single instance and handle wake-up of existing instance
     let wake_port = 28283;
     let wake_addr = format!("127.0.0.1:{}", wake_port);
-    
+
     let _wake_listener = match std::net::TcpListener::bind(&wake_addr) {
         Ok(listener) => {
             // We are the first instance. Clone the listener for the background thread
@@ -139,15 +141,18 @@ fn main() -> Result<()> {
 
     // Setup logging with GUI writer and disable ANSI colors so logs in UI are clean
     let writer_maker = GuiLogWriterMaker { logs: LOGS.clone() };
-    let filter = EnvFilter::try_from_default_env()
-        .unwrap_or_else(|_| EnvFilter::new(&config.logging.level));
+    let filter =
+        EnvFilter::try_from_default_env().unwrap_or_else(|_| EnvFilter::new(&config.logging.level));
     tracing_subscriber::fmt()
         .with_env_filter(filter)
         .with_writer(writer_maker)
         .with_ansi(false)
         .init();
 
-    info!("PXL Print Client v{} starting (GUI Mode)", env!("CARGO_PKG_VERSION"));
+    info!(
+        "PXL Print Client v{} starting (GUI Mode)",
+        env!("CARGO_PKG_VERSION")
+    );
     info!("Data directory: {:?}", data_dir);
 
     // TLS certificate
@@ -158,7 +163,7 @@ fn main() -> Result<()> {
 
     // Always start the Tokio runtime in background and launch native eframe GUI
     let rt = Arc::new(tokio::runtime::Runtime::new().context("Failed to create tokio runtime")?);
-    
+
     // Load PXL icon for window
     let icon_data = {
         let icon_bytes = include_bytes!("../icons/PXL Icon.png");
@@ -195,19 +200,17 @@ fn main() -> Result<()> {
                 tls_config,
             ))
         }),
-    ).map_err(|e| anyhow::anyhow!("Failed to run GUI: {:?}", e))
+    )
+    .map_err(|e| anyhow::anyhow!("Failed to run GUI: {:?}", e))
 }
 
 fn build_tls_config(cert_paths: &cert::CertPaths) -> Result<TlsServerConfig> {
-    let cert_pem = std::fs::read(&cert_paths.cert_pem)
-        .context("Failed to read cert PEM")?;
-    let key_pem = std::fs::read(&cert_paths.key_pem)
-        .context("Failed to read key PEM")?;
+    let cert_pem = std::fs::read(&cert_paths.cert_pem).context("Failed to read cert PEM")?;
+    let key_pem = std::fs::read(&cert_paths.key_pem).context("Failed to read key PEM")?;
 
-    let cert_chain: Vec<rustls::pki_types::CertificateDer<'static>> =
-        certs(&mut cert_pem.as_ref())
-            .collect::<Result<Vec<_>, _>>()
-            .context("Failed to parse certificate PEM")?;
+    let cert_chain: Vec<rustls::pki_types::CertificateDer<'static>> = certs(&mut cert_pem.as_ref())
+        .collect::<Result<Vec<_>, _>>()
+        .context("Failed to parse certificate PEM")?;
 
     let mut keys: Vec<rustls::pki_types::PrivateKeyDer<'static>> =
         pkcs8_private_keys(&mut key_pem.as_ref())

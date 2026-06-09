@@ -30,8 +30,7 @@ pub struct LoggingConfig {
 
 impl Config {
     pub fn load(config_path: &Path) -> Result<Self> {
-        let contents = fs::read_to_string(config_path)
-            .context("Failed to read config.toml")?;
+        let contents = fs::read_to_string(config_path).context("Failed to read config.toml")?;
         toml::from_str(&contents).context("Failed to parse config.toml")
     }
 

@@ -9,12 +9,10 @@ use windows::{
     Win32::{
         Foundation::HANDLE,
         Graphics::Printing::{
-            ClosePrinter, DOC_INFO_1W, EndDocPrinter, EndPagePrinter,
-            EnumPrintersW, GetDefaultPrinterW, OpenPrinterW,
-            PRINTER_ACCESS_USE, PRINTER_DEFAULTSW,
-            PRINTER_ENUM_CONNECTIONS, PRINTER_ENUM_LOCAL,
-            PRINTER_INFO_2W, StartDocPrinterW, StartPagePrinter,
-            WritePrinter,
+            ClosePrinter, EndDocPrinter, EndPagePrinter, EnumPrintersW, GetDefaultPrinterW,
+            OpenPrinterW, StartDocPrinterW, StartPagePrinter, WritePrinter, DOC_INFO_1W,
+            PRINTER_ACCESS_USE, PRINTER_DEFAULTSW, PRINTER_ENUM_CONNECTIONS, PRINTER_ENUM_LOCAL,
+            PRINTER_INFO_2W,
         },
     },
 };
@@ -44,7 +42,7 @@ pub fn list_printers() -> Result<Vec<PrinterInfo>> {
                 is_online: true,
             });
         }
-        
+
         if printers.is_empty() {
             printers.push(PrinterInfo {
                 name: "DEV_PRINTER".to_string(),
@@ -52,7 +50,7 @@ pub fn list_printers() -> Result<Vec<PrinterInfo>> {
                 is_online: true,
             });
         }
-        
+
         Ok(printers)
     }
 }
@@ -114,8 +112,7 @@ fn list_printers_windows() -> Result<Vec<PrinterInfo>> {
         // PRINTER_STATUS_OFFLINE = 0x00000080
         let is_online = (info.Status & 0x00000080) == 0;
 
-        let is_default =
-            default_name.as_deref() == Some(name.as_str());
+        let is_default = default_name.as_deref() == Some(name.as_str());
 
         printers.push(PrinterInfo {
             name,
@@ -133,9 +130,7 @@ fn get_default_printer_name() -> Option<String> {
 
     let mut buf = vec![0u16; needed as usize];
 
-    let success = unsafe {
-        GetDefaultPrinterW(PWSTR(buf.as_mut_ptr()), &mut needed)
-    };
+    let success = unsafe { GetDefaultPrinterW(PWSTR(buf.as_mut_ptr()), &mut needed) };
 
     if success.as_bool() {
         Some(
@@ -149,15 +144,8 @@ fn get_default_printer_name() -> Option<String> {
 }
 
 /// Print raw ESC/POS bytes
-pub fn print_raw(
-    printer_name: &str,
-    data: &[u8],
-) -> Result<()> {
-    info!(
-        "Printing {} bytes to '{}'",
-        data.len(),
-        printer_name
-    );
+pub fn print_raw(printer_name: &str, data: &[u8]) -> Result<()> {
+    info!("Printing {} bytes to '{}'", data.len(), printer_name);
 
     #[cfg(windows)]
     {
@@ -173,8 +161,9 @@ pub fn print_raw(
                 .write(true)
                 .open("/dev/usb/lp0")
                 .context("Failed to open /dev/usb/lp0 - Are you in the 'lp' group or root?")?;
-            
-            file.write_all(data).context("Failed to write to printer device")?;
+
+            file.write_all(data)
+                .context("Failed to write to printer device")?;
             file.flush().context("Failed to flush printer device")?;
             debug!("Successfully printed to Linux USB printer");
         } else {
@@ -186,10 +175,7 @@ pub fn print_raw(
 }
 
 #[cfg(windows)]
-fn print_raw_windows(
-    printer_name: &str,
-    data: &[u8],
-) -> Result<()> {
+fn print_raw_windows(printer_name: &str, data: &[u8]) -> Result<()> {
     let printer_name_wide: Vec<u16> = printer_name
         .encode_utf16()
         .chain(std::iter::once(0))
@@ -217,11 +203,9 @@ fn print_raw_windows(
         bail!("Printer handle invalid");
     }
 
-    let mut doc_name: Vec<u16> =
-        "PrintBridge Job\0".encode_utf16().collect();
+    let mut doc_name: Vec<u16> = "PrintBridge Job\0".encode_utf16().collect();
 
-    let mut raw: Vec<u16> =
-        "RAW\0".encode_utf16().collect();
+    let mut raw: Vec<u16> = "RAW\0".encode_utf16().collect();
 
     let doc_info = DOC_INFO_1W {
         pDocName: PWSTR(doc_name.as_mut_ptr()),
@@ -231,11 +215,7 @@ fn print_raw_windows(
 
     let result: Result<()> = (|| {
         unsafe {
-            let job = StartDocPrinterW(
-                handle,
-                1,
-                &doc_info as *const _ as *const _,
-            );
+            let job = StartDocPrinterW(handle, 1, &doc_info as *const _ as *const _);
 
             if job == 0 {
                 bail!("StartDocPrinterW failed");
@@ -262,9 +242,7 @@ fn print_raw_windows(
                 .ok()
                 .context("EndPagePrinter failed")?;
 
-            EndDocPrinter(handle)
-                .ok()
-                .context("EndDocPrinter failed")?;
+            EndDocPrinter(handle).ok().context("EndDocPrinter failed")?;
         }
 
         Ok(())
@@ -276,4 +254,3 @@ fn print_raw_windows(
 
     result
 }
-

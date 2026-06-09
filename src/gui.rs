@@ -1,7 +1,7 @@
-use std::path::PathBuf;
-use std::sync::{Arc, Mutex};
-use std::sync::atomic::Ordering;
 use eframe::egui;
+use std::path::PathBuf;
+use std::sync::atomic::Ordering;
+use std::sync::{Arc, Mutex};
 
 /// Flag set by tray icon thread or second-instance wake listener to request
 /// that the GUI window be restored and brought to the foreground.
@@ -73,7 +73,14 @@ impl PxlApp {
         }
 
         #[cfg(windows)]
-        let (tray_icon_opt, show_menu_id_opt, quit_menu_id_opt, tray_menu_opt, show_item_opt, quit_item_opt) = {
+        let (
+            tray_icon_opt,
+            show_menu_id_opt,
+            quit_menu_id_opt,
+            tray_menu_opt,
+            show_item_opt,
+            quit_item_opt,
+        ) = {
             use tray_icon::{
                 menu::{Menu, MenuItem, PredefinedMenuItem},
                 TrayIconBuilder,
@@ -82,20 +89,18 @@ impl PxlApp {
             let tray_menu = Menu::new();
             let show_item = MenuItem::new("Show PXL", true, None);
             let quit_item = MenuItem::new("Quit", true, None);
-            
+
             let show_id = show_item.id().clone();
             let quit_id = quit_item.id().clone();
 
-            let _ = tray_menu.append_items(&[
-                &show_item,
-                &PredefinedMenuItem::separator(),
-                &quit_item,
-            ]);
+            let _ =
+                tray_menu.append_items(&[&show_item, &PredefinedMenuItem::separator(), &quit_item]);
 
             // Load the PXL icon from embedded PNG bytes
             let icon_bytes = include_bytes!("../icons/PXL Icon.png");
-            let icon_image = image::load_from_memory_with_format(icon_bytes, image::ImageFormat::Png)
-                .expect("Failed to decode embedded PXL icon");
+            let icon_image =
+                image::load_from_memory_with_format(icon_bytes, image::ImageFormat::Png)
+                    .expect("Failed to decode embedded PXL icon");
             let rgba_image = icon_image.to_rgba8();
             let (width, height) = rgba_image.dimensions();
             let rgba = rgba_image.into_raw();
@@ -111,7 +116,14 @@ impl PxlApp {
                 None
             };
 
-            (tray, Some(show_id), Some(quit_id), Some(tray_menu), Some(show_item), Some(quit_item))
+            (
+                tray,
+                Some(show_id),
+                Some(quit_id),
+                Some(tray_menu),
+                Some(show_item),
+                Some(quit_item),
+            )
         };
 
         let mut app = Self {
@@ -150,7 +162,7 @@ impl PxlApp {
             let ctx = cc.egui_ctx.clone();
             let show_id = app.show_menu_id.clone();
             let quit_id = app.quit_menu_id.clone();
-            
+
             std::thread::spawn(move || {
                 loop {
                     // Process menu events
@@ -338,7 +350,11 @@ impl PxlApp {
     fn render_origins_tab(&mut self, ui: &mut egui::Ui) {
         ui.add_space(8.0);
         ui.label(egui::RichText::new("Allowed Origins (CORS)").strong());
-        ui.label(egui::RichText::new("Websites that are allowed to connect to PXL.").weak().size(11.0));
+        ui.label(
+            egui::RichText::new("Websites that are allowed to connect to PXL.")
+                .weak()
+                .size(11.0),
+        );
         ui.add_space(8.0);
 
         // Add new origin
@@ -346,7 +362,7 @@ impl PxlApp {
             ui.add(
                 egui::TextEdit::singleline(&mut self.new_origin_input)
                     .hint_text("e.g. https://myapp.com")
-                    .desired_width(ui.available_width() - 60.0)
+                    .desired_width(ui.available_width() - 60.0),
             );
             if ui.button("Add").clicked() {
                 let origin = self.new_origin_input.trim().to_string();
@@ -381,13 +397,24 @@ impl PxlApp {
             .auto_shrink([false, false])
             .show(ui, |ui| {
                 if origins.is_empty() {
-                    ui.label(egui::RichText::new("No origins configured. Add one above.").weak().italics());
+                    ui.label(
+                        egui::RichText::new("No origins configured. Add one above.")
+                            .weak()
+                            .italics(),
+                    );
                 }
                 for (i, origin) in origins.iter().enumerate() {
                     ui.horizontal(|ui| {
                         ui.label(egui::RichText::new(origin).monospace());
                         ui.with_layout(egui::Layout::right_to_left(egui::Align::Center), |ui| {
-                            if ui.button(egui::RichText::new("Remove").color(egui::Color32::from_rgb(231, 76, 60)).size(11.0)).clicked() {
+                            if ui
+                                .button(
+                                    egui::RichText::new("Remove")
+                                        .color(egui::Color32::from_rgb(231, 76, 60))
+                                        .size(11.0),
+                                )
+                                .clicked()
+                            {
                                 to_remove = Some(i);
                             }
                         });
@@ -426,7 +453,11 @@ impl PxlApp {
             .auto_shrink([false, true])
             .show(ui, |ui| {
                 if self.printers.is_empty() {
-                    ui.label(egui::RichText::new("No printers found on this machine.").weak().italics());
+                    ui.label(
+                        egui::RichText::new("No printers found on this machine.")
+                            .weak()
+                            .italics(),
+                    );
                 }
                 for p in &self.printers {
                     let is_selected = self.selected_printer == p.name;
@@ -454,15 +485,29 @@ impl PxlApp {
         ui.horizontal(|ui| {
             ui.label("Selected:");
             if self.selected_printer.is_empty() {
-                ui.label(egui::RichText::new("None — click a printer above").weak().italics());
+                ui.label(
+                    egui::RichText::new("None — click a printer above")
+                        .weak()
+                        .italics(),
+                );
             } else {
-                ui.label(egui::RichText::new(&self.selected_printer).monospace().strong());
+                ui.label(
+                    egui::RichText::new(&self.selected_printer)
+                        .monospace()
+                        .strong(),
+                );
             }
         });
 
         ui.add_space(4.0);
 
-        if ui.add_enabled(!self.selected_printer.is_empty(), egui::Button::new("Send Test Receipt")).clicked() {
+        if ui
+            .add_enabled(
+                !self.selected_printer.is_empty(),
+                egui::Button::new("Send Test Receipt"),
+            )
+            .clicked()
+        {
             self.trigger_test_print();
         }
     }
@@ -503,7 +548,7 @@ impl PxlApp {
                         .text_color(egui::Color32::from_rgb(200, 200, 200))
                         .desired_width(f32::INFINITY)
                         .desired_rows(20)
-                        .lock_focus(true)
+                        .lock_focus(true),
                 );
             });
     }
@@ -561,11 +606,14 @@ impl eframe::App for PxlApp {
                     .on_hover_text(tip);
 
                 ui.with_layout(egui::Layout::right_to_left(egui::Align::Center), |ui| {
-                    if ui.button(
-                        egui::RichText::new("Quit")
-                            .color(egui::Color32::from_rgb(231, 76, 60))
-                            .size(12.0)
-                    ).clicked() {
+                    if ui
+                        .button(
+                            egui::RichText::new("Quit")
+                                .color(egui::Color32::from_rgb(231, 76, 60))
+                                .size(12.0),
+                        )
+                        .clicked()
+                    {
                         std::process::exit(0);
                     }
                 });
@@ -599,13 +647,11 @@ impl eframe::App for PxlApp {
         });
 
         // ── Central panel: active tab content ──
-        egui::CentralPanel::default().show(ctx, |ui| {
-            match self.active_tab {
-                Tab::Server => self.render_server_tab(ui),
-                Tab::Origins => self.render_origins_tab(ui),
-                Tab::Printers => self.render_printers_tab(ui),
-                Tab::Logs => self.render_logs_tab(ui),
-            }
+        egui::CentralPanel::default().show(ctx, |ui| match self.active_tab {
+            Tab::Server => self.render_server_tab(ui),
+            Tab::Origins => self.render_origins_tab(ui),
+            Tab::Printers => self.render_printers_tab(ui),
+            Tab::Logs => self.render_logs_tab(ui),
         });
     }
 }

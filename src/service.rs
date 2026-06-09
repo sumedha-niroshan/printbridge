@@ -1,10 +1,14 @@
 #![cfg(windows)]
 
 use anyhow::{Context, Result};
+use rustls_pemfile::{certs, pkcs8_private_keys};
 use std::ffi::OsString;
 use std::path::PathBuf;
 use std::sync::Arc;
 use std::time::Duration;
+use tokio_rustls::rustls::{self, ServerConfig as TlsServerConfig};
+use tracing::info;
+use tracing_subscriber::EnvFilter;
 use windows_service::{
     define_windows_service,
     service::{
@@ -14,10 +18,6 @@ use windows_service::{
     service_control_handler::{self, ServiceControlHandlerResult},
     service_dispatcher,
 };
-use tracing::info;
-use tracing_subscriber::EnvFilter;
-use rustls_pemfile::{certs, pkcs8_private_keys};
-use tokio_rustls::rustls::{self, ServerConfig as TlsServerConfig};
 
 const SERVICE_NAME: &str = "PXL";
 
@@ -30,8 +30,7 @@ pub fn run_as_service() -> Result<()> {
 
 fn service_main(_args: Vec<OsString>) {
     // Setup logging for service
-    let filter = EnvFilter::try_from_default_env()
-        .unwrap_or_else(|_| EnvFilter::new("info"));
+    let filter = EnvFilter::try_from_default_env().unwrap_or_else(|_| EnvFilter::new("info"));
     tracing_subscriber::fmt()
         .with_env_filter(filter)
         .with_writer(std::io::stdout)
@@ -138,15 +137,12 @@ fn get_service_data_dir() -> PathBuf {
 }
 
 fn build_tls_config(cert_paths: &crate::cert::CertPaths) -> Result<TlsServerConfig> {
-    let cert_pem = std::fs::read(&cert_paths.cert_pem)
-        .context("Failed to read cert PEM")?;
-    let key_pem = std::fs::read(&cert_paths.key_pem)
-        .context("Failed to read key PEM")?;
+    let cert_pem = std::fs::read(&cert_paths.cert_pem).context("Failed to read cert PEM")?;
+    let key_pem = std::fs::read(&cert_paths.key_pem).context("Failed to read key PEM")?;
 
-    let cert_chain: Vec<rustls::pki_types::CertificateDer<'static>> =
-        certs(&mut cert_pem.as_ref())
-            .collect::<Result<Vec<_>, _>>()
-            .context("Failed to parse certificate PEM")?;
+    let cert_chain: Vec<rustls::pki_types::CertificateDer<'static>> = certs(&mut cert_pem.as_ref())
+        .collect::<Result<Vec<_>, _>>()
+        .context("Failed to parse certificate PEM")?;
 
     let mut keys: Vec<rustls::pki_types::PrivateKeyDer<'static>> =
         pkcs8_private_keys(&mut key_pem.as_ref())

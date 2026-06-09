@@ -1,8 +1,8 @@
 use std::env;
 use std::fs;
+use std::io::{self, Write};
 use std::path::{Path, PathBuf};
 use std::process::Command;
-use std::io::{self, Write};
 
 fn main() {
     let args: Vec<String> = env::args().collect();
@@ -74,10 +74,7 @@ fn try_self_elevate(extra_args: &[&str]) -> bool {
         .collect();
 
     let params = extra_args.join(" ");
-    let params_wide: Vec<u16> = params
-        .encode_utf16()
-        .chain(std::iter::once(0))
-        .collect();
+    let params_wide: Vec<u16> = params.encode_utf16().chain(std::iter::once(0)).collect();
 
     let verb: Vec<u16> = "runas\0".encode_utf16().collect();
 
@@ -174,14 +171,16 @@ fn install() {
     println!();
 
     let installer_path = env::current_exe().expect("Failed to get installer path");
-    let installer_dir = installer_path.parent().expect("Failed to get exe directory");
+    let installer_dir = installer_path
+        .parent()
+        .expect("Failed to get exe directory");
     let program_files = get_program_files();
     let appdata_dir = get_appdata_dir();
     let pxl_data_dir = get_pxl_data_dir();
 
     // Look for pxl.exe in the same directory as installer
     let pxl_src = installer_dir.join("pxl.exe");
-    
+
     if !pxl_src.exists() {
         eprintln!("❌ Error: pxl.exe not found in the same directory as installer.exe");
         eprintln!();
@@ -371,9 +370,12 @@ fn setup_auto_start(app_exe: &Path) {
             .args(&[
                 "add",
                 "HKCU\\Software\\Microsoft\\Windows\\CurrentVersion\\Run",
-                "/v", "PXL",
-                "/t", "REG_SZ",
-                "/d", &format!("\"{}\"", app_exe.display()),
+                "/v",
+                "PXL",
+                "/t",
+                "REG_SZ",
+                "/d",
+                &format!("\"{}\"", app_exe.display()),
                 "/f",
             ])
             .output()
@@ -540,7 +542,8 @@ fn remove_auto_start() {
             .args(&[
                 "delete",
                 "HKCU\\Software\\Microsoft\\Windows\\CurrentVersion\\Run",
-                "/v", "PXL",
+                "/v",
+                "PXL",
                 "/f",
             ])
             .creation_flags(CREATE_NO_WINDOW)
@@ -563,8 +566,8 @@ fn remove_auto_start() {
 
 #[cfg(windows)]
 fn register_in_control_panel(exe_path: &Path, install_dir: &Path) -> Result<(), String> {
-    use winreg::RegKey;
     use winreg::enums::*;
+    use winreg::RegKey;
 
     let hklm = RegKey::predef(HKEY_LOCAL_MACHINE);
     let path = "SOFTWARE\\Microsoft\\Windows\\CurrentVersion\\Uninstall\\PXL";
@@ -593,8 +596,11 @@ fn register_in_control_panel(exe_path: &Path, install_dir: &Path) -> Result<(), 
     key.set_value("DisplayIcon", &exe_path.to_string_lossy().to_string())
         .map_err(|e| format!("Failed to set DisplayIcon: {}", e))?;
 
-    key.set_value("InstallLocation", &install_dir.to_string_lossy().to_string())
-        .map_err(|e| format!("Failed to set InstallLocation: {}", e))?;
+    key.set_value(
+        "InstallLocation",
+        &install_dir.to_string_lossy().to_string(),
+    )
+    .map_err(|e| format!("Failed to set InstallLocation: {}", e))?;
 
     key.set_value("EstimatedSize", &6400u32)
         .map_err(|e| format!("Failed to set EstimatedSize: {}", e))?;
@@ -610,8 +616,8 @@ fn register_in_control_panel(exe_path: &Path, install_dir: &Path) -> Result<(), 
 
 #[cfg(windows)]
 fn remove_registry_entry() -> Result<(), String> {
-    use winreg::RegKey;
     use winreg::enums::*;
+    use winreg::RegKey;
 
     let hklm = RegKey::predef(HKEY_LOCAL_MACHINE);
     let path = "SOFTWARE\\Microsoft\\Windows\\CurrentVersion\\Uninstall\\PXL";
