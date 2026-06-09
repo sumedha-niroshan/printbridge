@@ -73,13 +73,14 @@ fn main() -> Result<()> {
         .ok();
 
     // Check for command line flags
+    #[cfg(windows)]
     let args: Vec<String> = std::env::args().collect();
-    let run_service = args.contains(&"--service".to_string());
 
     // Default: Run GUI (like QZ Tray — double-click opens the control panel)
     // With --service flag: Run as Windows Service (for SCM-managed background mode)
     #[cfg(windows)]
     {
+        let run_service = args.contains(&"--service".to_string());
         if run_service {
             return service::run_as_service();
         }
@@ -97,17 +98,15 @@ fn main() -> Result<()> {
             // so we can keep the original handle alive in this scope.
             let thread_listener = listener.try_clone().expect("failed to clone wake listener");
             std::thread::spawn(move || {
-                for stream in thread_listener.incoming() {
-                    if let Ok(_stream) = stream {
-                        WAKE_GUI.store(true, std::sync::atomic::Ordering::SeqCst);
-                        // Also set the SHOW_GUI flag so the window gets
-                        // un-minimized through the same path as tray clicks
-                        #[cfg(windows)]
-                        gui::SHOW_GUI.store(true, std::sync::atomic::Ordering::SeqCst);
-                        if let Ok(guard) = EGUI_CTX.lock() {
-                            if let Some(ref ctx) = *guard {
-                                ctx.request_repaint();
-                            }
+                for _stream in thread_listener.incoming().flatten() {
+                    WAKE_GUI.store(true, std::sync::atomic::Ordering::SeqCst);
+                    // Also set the SHOW_GUI flag so the window gets
+                    // un-minimized through the same path as tray clicks
+                    #[cfg(windows)]
+                    gui::SHOW_GUI.store(true, std::sync::atomic::Ordering::SeqCst);
+                    if let Ok(guard) = EGUI_CTX.lock() {
+                        if let Some(ref ctx) = *guard {
+                            ctx.request_repaint();
                         }
                     }
                 }

@@ -48,6 +48,7 @@ pub async fn run_server(config: Arc<Config>, tls_config: Arc<ServerConfig>) -> R
     }
 }
 
+#[allow(clippy::result_large_err)]
 async fn handle_connection(
     stream: TcpStream,
     peer: SocketAddr,

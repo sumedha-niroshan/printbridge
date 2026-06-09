@@ -256,18 +256,14 @@ fn install() {
 
     // Copy config to AppData if not present
     let appdata_config = appdata_dir.join("config.toml");
-    if !appdata_config.exists() {
-        if config_file.exists() {
-            let _ = fs::copy(&config_file, &appdata_config);
-        }
+    if !appdata_config.exists() && config_file.exists() {
+        let _ = fs::copy(&config_file, &appdata_config);
     }
 
     // Also copy to data dir used by directories crate
     let data_config = pxl_data_dir.join("config.toml");
-    if !data_config.exists() {
-        if config_file.exists() {
-            let _ = fs::copy(&config_file, &data_config);
-        }
+    if !data_config.exists() && config_file.exists() {
+        let _ = fs::copy(&config_file, &data_config);
     }
 
     println!("✓");
@@ -362,43 +358,44 @@ fn stop_existing_instances() {
     }
 }
 
+#[cfg(windows)]
 fn setup_auto_start(app_exe: &Path) {
-    #[cfg(windows)]
+    // Method 1: Registry Run key (most reliable)
+    if let Ok(output) = Command::new("reg")
+        .args(&[
+            "add",
+            "HKCU\\Software\\Microsoft\\Windows\\CurrentVersion\\Run",
+            "/v",
+            "PXL",
+            "/t",
+            "REG_SZ",
+            "/d",
+            &format!("\"{}\"", app_exe.display()),
+            "/f",
+        ])
+        .output()
     {
-        // Method 1: Registry Run key (most reliable)
-        if let Ok(output) = Command::new("reg")
-            .args(&[
-                "add",
-                "HKCU\\Software\\Microsoft\\Windows\\CurrentVersion\\Run",
-                "/v",
-                "PXL",
-                "/t",
-                "REG_SZ",
-                "/d",
-                &format!("\"{}\"", app_exe.display()),
-                "/f",
-            ])
-            .output()
-        {
-            if !output.status.success() {
-                eprintln!("      ⚠ Registry auto-start failed (non-critical)");
-            }
-        }
-
-        // Method 2: Startup folder shortcut (backup)
-        if let Ok(appdata) = env::var("APPDATA") {
-            let startup_folder = Path::new(&appdata)
-                .join("Microsoft")
-                .join("Windows")
-                .join("Start Menu")
-                .join("Programs")
-                .join("Startup");
-
-            let shortcut_path = startup_folder.join("PXL.lnk");
-            create_shortcut(app_exe, &shortcut_path, "PXL Silent Print Client");
+        if !output.status.success() {
+            eprintln!("      ⚠ Registry auto-start failed (non-critical)");
         }
     }
+
+    // Method 2: Startup folder shortcut (backup)
+    if let Ok(appdata) = env::var("APPDATA") {
+        let startup_folder = Path::new(&appdata)
+            .join("Microsoft")
+            .join("Windows")
+            .join("Start Menu")
+            .join("Programs")
+            .join("Startup");
+
+        let shortcut_path = startup_folder.join("PXL.lnk");
+        create_shortcut(app_exe, &shortcut_path, "PXL Silent Print Client");
+    }
 }
+
+#[cfg(not(windows))]
+fn setup_auto_start(_app_exe: &Path) {}
 
 fn setup_tls_certificate(app_exe: &Path, data_dir: &Path) {
     let cert_path = data_dir.join("certs").join("printbridge.crt");
@@ -406,7 +403,7 @@ fn setup_tls_certificate(app_exe: &Path, data_dir: &Path) {
     // If cert doesn't exist, run PXL briefly to generate it
     if !cert_path.exists() {
         if let Ok(child) = Command::new(app_exe).spawn() {
-            let pid = child.id();
+            let _pid = child.id();
             std::thread::sleep(std::time::Duration::from_secs(4));
 
             // Kill the process after cert generation
@@ -415,7 +412,7 @@ fn setup_tls_certificate(app_exe: &Path, data_dir: &Path) {
                 use std::os::windows::process::CommandExt;
                 const CREATE_NO_WINDOW: u32 = 0x08000000;
                 let _ = Command::new("taskkill")
-                    .args(&["/F", "/PID", &pid.to_string()])
+                    .args(&["/F", "/PID", &_pid.to_string()])
                     .creation_flags(CREATE_NO_WINDOW)
                     .output();
             }
@@ -626,64 +623,58 @@ fn remove_registry_entry() -> Result<(), String> {
         .map_err(|e| format!("Failed to remove registry entry: {}", e))
 }
 
-#[cfg(not(windows))]
-fn register_in_control_panel(_exe_path: &Path, _install_dir: &Path) -> Result<(), String> {
-    Ok(())
-}
-
-#[cfg(not(windows))]
-fn remove_registry_entry() -> Result<(), String> {
-    Ok(())
-}
-
+#[cfg(windows)]
+#[cfg(windows)]
 fn create_start_menu_shortcuts(install_dir: &Path, app_exe: &Path) -> String {
-    #[cfg(windows)]
-    {
-        // Use ProgramData for all-users shortcuts (since we have admin)
-        if let Ok(programdata) = env::var("PROGRAMDATA") {
-            let start_menu = Path::new(&programdata)
-                .join("Microsoft")
-                .join("Windows")
-                .join("Start Menu")
-                .join("Programs")
-                .join("PXL");
+    // Use ProgramData for all-users shortcuts (since we have admin)
+    if let Ok(programdata) = env::var("PROGRAMDATA") {
+        let start_menu = Path::new(&programdata)
+            .join("Microsoft")
+            .join("Windows")
+            .join("Start Menu")
+            .join("Programs")
+            .join("PXL");
 
-            let _ = fs::create_dir_all(&start_menu);
+        let _ = fs::create_dir_all(&start_menu);
 
-            // Create app shortcut
-            let app_shortcut = start_menu.join("PXL Print Client.lnk");
-            create_shortcut(app_exe, &app_shortcut, "PXL Silent Print Client");
+        // Create app shortcut
+        let app_shortcut = start_menu.join("PXL Print Client.lnk");
+        create_shortcut(app_exe, &app_shortcut, "PXL Silent Print Client");
 
-            // Create uninstall shortcut
-            let uninstall_exe = install_dir.join("uninstall.exe");
-            let uninstall_shortcut = start_menu.join("Uninstall PXL.lnk");
-            create_shortcut(&uninstall_exe, &uninstall_shortcut, "Uninstall PXL");
+        // Create uninstall shortcut
+        let uninstall_exe = install_dir.join("uninstall.exe");
+        let uninstall_shortcut = start_menu.join("Uninstall PXL.lnk");
+        create_shortcut(&uninstall_exe, &uninstall_shortcut, "Uninstall PXL");
 
-            return start_menu.display().to_string();
-        }
-
-        // Fallback: per-user shortcuts
-        if let Ok(appdata) = env::var("APPDATA") {
-            let start_menu = Path::new(&appdata)
-                .join("Microsoft")
-                .join("Windows")
-                .join("Start Menu")
-                .join("Programs")
-                .join("PXL");
-
-            let _ = fs::create_dir_all(&start_menu);
-
-            let app_shortcut = start_menu.join("PXL Print Client.lnk");
-            create_shortcut(app_exe, &app_shortcut, "PXL Silent Print Client");
-
-            let uninstall_exe = install_dir.join("uninstall.exe");
-            let uninstall_shortcut = start_menu.join("Uninstall PXL.lnk");
-            create_shortcut(&uninstall_exe, &uninstall_shortcut, "Uninstall PXL");
-
-            return start_menu.display().to_string();
-        }
+        return start_menu.display().to_string();
     }
 
+    // Fallback: per-user shortcuts
+    if let Ok(appdata) = env::var("APPDATA") {
+        let start_menu = Path::new(&appdata)
+            .join("Microsoft")
+            .join("Windows")
+            .join("Start Menu")
+            .join("Programs")
+            .join("PXL");
+
+        let _ = fs::create_dir_all(&start_menu);
+
+        let app_shortcut = start_menu.join("PXL Print Client.lnk");
+        create_shortcut(app_exe, &app_shortcut, "PXL Silent Print Client");
+
+        let uninstall_exe = install_dir.join("uninstall.exe");
+        let uninstall_shortcut = start_menu.join("Uninstall PXL.lnk");
+        create_shortcut(&uninstall_exe, &uninstall_shortcut, "Uninstall PXL");
+
+        return start_menu.display().to_string();
+    }
+
+    String::new()
+}
+
+#[cfg(not(windows))]
+fn create_start_menu_shortcuts(_install_dir: &Path, _app_exe: &Path) -> String {
     String::new()
 }
 
@@ -715,9 +706,6 @@ $Shortcut.Save()
         .creation_flags(CREATE_NO_WINDOW)
         .output();
 }
-
-#[cfg(not(windows))]
-fn create_shortcut(_target: &Path, _shortcut_path: &Path, _description: &str) {}
 
 fn pause() {
     print!("Press Enter to close...");
